@@ -1,4 +1,4 @@
-package internal
+package chat
 
 type Message struct {
 	Nickname string

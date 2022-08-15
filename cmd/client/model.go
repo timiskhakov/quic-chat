@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/timiskhakov/quic-chat/internal"
+	"github.com/timiskhakov/quic-chat/internal/chat"
 	"strings"
 	"sync"
 )
@@ -18,13 +18,13 @@ type model struct {
 	viewport viewport.Model
 	textarea textarea.Model
 	err      error
-	send     func(text string)
-	messages []string
-	ch       <-chan internal.Message
+	lines    []string
+	send     func(text string) error
+	messages <-chan chat.Message
 	mutex    sync.Mutex
 }
 
-func initialModel(send func(text string), ch <-chan internal.Message) *model {
+func initialModel(send func(text string) error, messages <-chan chat.Message) *model {
 	vp := viewport.New(30, 10)
 
 	ta := textarea.New()
@@ -40,17 +40,17 @@ func initialModel(send func(text string), ch <-chan internal.Message) *model {
 		viewport: vp,
 		textarea: ta,
 		err:      nil,
+		lines:    []string{},
 		send:     send,
-		messages: []string{},
-		ch:       ch,
+		messages: messages,
 	}
 }
 
 func (m *model) Init() tea.Cmd {
 	go func() {
-		for message := range m.ch {
+		for message := range m.messages {
 			m.mutex.Lock()
-			m.messages = append(m.messages, fmt.Sprintf("[%s]: %s", message.Nickname, message.Text))
+			m.lines = append(m.lines, fmt.Sprintf("[%s]: %s", message.Nickname, message.Text))
 			m.mutex.Unlock()
 		}
 	}()
@@ -73,7 +73,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
 		case tea.KeyEnter:
-			m.send(m.textarea.Value())
+			m.err = m.send(m.textarea.Value())
 			m.textarea.Reset()
 			break
 		}
@@ -83,7 +83,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	m.mutex.Lock()
-	m.viewport.SetContent(strings.Join(m.messages, "\n"))
+	m.viewport.SetContent(strings.Join(m.lines, "\n"))
 	m.mutex.Unlock()
 
 	m.viewport.GotoBottom()

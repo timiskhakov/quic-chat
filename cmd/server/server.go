@@ -5,20 +5,20 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/lucas-clemente/quic-go"
-	"github.com/timiskhakov/quic-chat/internal"
+	"github.com/timiskhakov/quic-chat/internal/chat"
 	"sync"
 )
 
 type server struct {
 	mutex    sync.Mutex
 	conns    map[string]quic.Connection
-	messages chan internal.Message
+	messages chan chat.Message
 }
 
 func NewServer() *server {
 	return &server{
 		conns:    map[string]quic.Connection{},
-		messages: make(chan internal.Message),
+		messages: make(chan chat.Message),
 	}
 }
 
@@ -69,7 +69,7 @@ func (s *server) handleConn(conn quic.Connection) {
 func (s *server) handleStream(stream quic.Stream) {
 	defer func() { _ = stream.Close() }()
 
-	var message internal.Message
+	var message chat.Message
 	if err := gob.NewDecoder(stream).Decode(&message); err != nil {
 		// TODO: handle error
 		return
