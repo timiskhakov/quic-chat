@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"github.com/timiskhakov/quic-chat/internal/chat"
 	"log"
@@ -25,8 +26,11 @@ func run() error {
 	}
 	defer func() { _ = server.Close() }()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	go server.Accept()
-	go server.Broadcast()
+	go server.Broadcast(ctx)
 
 	log.Printf("server started: %s\n", addr)
 

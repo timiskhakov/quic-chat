@@ -44,23 +44,28 @@ func (s *server) Close() error {
 	return s.listener.Close()
 }
 
-func (s *server) Broadcast() {
-	for message := range s.messages {
-		s.mutex.Lock()
-		for _, client := range s.clients {
-			stream, err := client.OpenStreamSync(context.Background())
-			if err != nil {
-				log.Printf("[ERROR] failed to open client stream: %v\n", err)
-				continue
+func (s *server) Broadcast(ctx context.Context) {
+	for {
+		select {
+		case message := <-s.messages:
+			s.mutex.Lock()
+			for _, client := range s.clients {
+				stream, err := client.OpenStreamSync(context.Background())
+				if err != nil {
+					log.Printf("[ERROR] failed to open client stream: %v\n", err)
+					continue
+				}
+				if err := gob.NewEncoder(stream).Encode(&message); err != nil {
+					log.Printf("[ERROR] failed to decode message: %v\n", err)
+					continue
+				}
+				_ = stream.Close()
 			}
-			if err := gob.NewEncoder(stream).Encode(&message); err != nil {
-				log.Printf("[ERROR] failed to decode message: %v\n", err)
-				continue
-			}
-			_ = stream.Close()
+			s.mutex.Unlock()
+			log.Printf("[INFO] message received, broadcasted to %d clients\n", len(s.clients))
+		case <-ctx.Done():
+			return
 		}
-		s.mutex.Unlock()
-		log.Printf("[INFO] message received, broadcasted to %d clients\n", len(s.clients))
 	}
 }
 
@@ -68,8 +73,7 @@ func (s *server) Accept() {
 	for {
 		conn, err := s.listener.Accept(context.Background())
 		if err != nil {
-			log.Printf("[ERROR] failed to accept client connection: %v\n", err)
-			continue
+			return
 		}
 
 		go s.handleConn(conn)
@@ -88,11 +92,13 @@ func (s *server) handleConn(conn quic.Connection) {
 	for {
 		stream, err := conn.AcceptStream(context.Background())
 		if err != nil {
+			addr := conn.RemoteAddr().String()
 			s.mutex.Lock()
-			delete(s.clients, conn.RemoteAddr().String())
+			if _, ok := s.clients[addr]; ok {
+				delete(s.clients, addr)
+				log.Printf("[INFO] removed client %s\n", addr)
+			}
 			s.mutex.Unlock()
-			log.Printf("[ERROR] failed to accept client stream: %v\n", err)
-			log.Printf("[INFO] removed client dut to timeout: %s\n", conn.RemoteAddr().String())
 			return
 		}
 
