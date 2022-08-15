@@ -15,7 +15,7 @@ type client struct {
 func NewClient(addr, nickname string) (*client, error) {
 	conn, err := quic.DialAddr(addr, &tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{"quic-echo-example"},
+		NextProtos:         []string{protocol},
 	}, nil)
 	if err != nil {
 		return nil, err

@@ -9,56 +9,58 @@ import (
 	"encoding/gob"
 	"encoding/pem"
 	"github.com/lucas-clemente/quic-go"
+	"log"
 	"math/big"
 	"sync"
 )
 
 type server struct {
 	listener quic.Listener
-	conns    map[string]quic.Connection
+	clients  map[string]quic.Connection
 	messages chan Message
 	mutex    sync.Mutex
 }
 
-func NewServer(addr string) (*server, func(), error) {
+func NewServer(addr string) (*server, error) {
 	tlsConf, err := generateTLSConfig()
 	if err != nil {
-		return nil, func() {}, err
+		return nil, err
 	}
 
 	listener, err := quic.ListenAddr(addr, tlsConf, nil)
 	if err != nil {
-		return nil, func() {}, err
+		return nil, err
 	}
 
-	messages := make(chan Message)
-
 	return &server{
-			listener: listener,
-			conns:    map[string]quic.Connection{},
-			messages: messages,
-		}, func() {
-			close(messages)
-			_ = listener.Close()
-		}, nil
+		listener: listener,
+		clients:  map[string]quic.Connection{},
+		messages: make(chan Message),
+	}, nil
+}
+
+func (s *server) Close() error {
+	close(s.messages)
+	return s.listener.Close()
 }
 
 func (s *server) Broadcast() {
 	for message := range s.messages {
 		s.mutex.Lock()
-		for _, conn := range s.conns {
-			stream, err := conn.OpenStreamSync(context.Background())
+		for _, client := range s.clients {
+			stream, err := client.OpenStreamSync(context.Background())
 			if err != nil {
-				// TODO: Handle error
+				log.Printf("[ERROR] failed to open client stream: %v\n", err)
 				continue
 			}
 			if err := gob.NewEncoder(stream).Encode(&message); err != nil {
-				// TODO: Handle error
+				log.Printf("[ERROR] failed to decode message: %v\n", err)
 				continue
 			}
 			_ = stream.Close()
 		}
 		s.mutex.Unlock()
+		log.Printf("[INFO] message received, broadcasted to %d clients\n", len(s.clients))
 	}
 }
 
@@ -66,7 +68,7 @@ func (s *server) Accept() {
 	for {
 		conn, err := s.listener.Accept(context.Background())
 		if err != nil {
-			// TODO: Handle error
+			log.Printf("[ERROR] failed to accept client connection: %v\n", err)
 			continue
 		}
 
@@ -75,34 +77,35 @@ func (s *server) Accept() {
 }
 
 func (s *server) handleConn(conn quic.Connection) {
+	defer func() { _ = conn.CloseWithError(1, "server closed") }()
+
+	s.mutex.Lock()
+	s.clients[conn.RemoteAddr().String()] = conn
+	s.mutex.Unlock()
+
+	log.Printf("[INFO] added client: %s\n", conn.RemoteAddr().String())
+
 	for {
 		stream, err := conn.AcceptStream(context.Background())
 		if err != nil {
 			s.mutex.Lock()
-			delete(s.conns, conn.RemoteAddr().String())
+			delete(s.clients, conn.RemoteAddr().String())
 			s.mutex.Unlock()
-			// TODO: Add logging?
+			log.Printf("[ERROR] failed to accept client stream: %v\n", err)
+			log.Printf("[INFO] removed client dut to timeout: %s\n", conn.RemoteAddr().String())
 			return
 		}
 
-		s.mutex.Lock()
-		s.conns[conn.RemoteAddr().String()] = conn
-		s.mutex.Unlock()
+		var message Message
+		if err := gob.NewDecoder(stream).Decode(&message); err != nil {
+			log.Printf("[ERROR] failed to decode message: %v\n", err)
+			return
+		}
 
-		go s.handleStream(stream)
+		s.messages <- message
+
+		_ = stream.Close()
 	}
-}
-
-func (s *server) handleStream(stream quic.Stream) {
-	defer func() { _ = stream.Close() }()
-
-	var message Message
-	if err := gob.NewDecoder(stream).Decode(&message); err != nil {
-		// TODO: handle error
-		return
-	}
-
-	s.messages <- message
 }
 
 func generateTLSConfig() (*tls.Config, error) {
@@ -124,6 +127,6 @@ func generateTLSConfig() (*tls.Config, error) {
 	}
 	return &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
-		NextProtos:   []string{"quic-echo-example"},
+		NextProtos:   []string{protocol},
 	}, nil
 }
