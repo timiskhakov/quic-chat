@@ -29,7 +29,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go server.Accept()
+	go server.Accept(ctx)
 	go server.Broadcast(ctx)
 
 	log.Printf("server started: %s\n", addr)

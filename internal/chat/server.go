@@ -12,6 +12,7 @@ import (
 	"log"
 	"math/big"
 	"sync"
+	"time"
 )
 
 type server struct {
@@ -27,7 +28,9 @@ func NewServer(addr string) (*server, error) {
 		return nil, err
 	}
 
-	listener, err := quic.ListenAddr(addr, tlsConf, nil)
+	listener, err := quic.ListenAddr(addr, tlsConf, &quic.Config{
+		KeepAlivePeriod: 10 * time.Second,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -69,9 +72,9 @@ func (s *server) Broadcast(ctx context.Context) {
 	}
 }
 
-func (s *server) Accept() {
+func (s *server) Accept(ctx context.Context) {
 	for {
-		conn, err := s.listener.Accept(context.Background())
+		conn, err := s.listener.Accept(ctx)
 		if err != nil {
 			return
 		}
