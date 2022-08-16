@@ -46,22 +46,18 @@ func (c *client) Receive() <-chan Message {
 		for {
 			stream, err := c.conn.AcceptStream(context.Background())
 			if err != nil {
-				// TODO: Add proper error handling
 				return
 			}
 
 			var message Message
 			if err := gob.NewDecoder(stream).Decode(&message); err != nil {
-				// TODO: Add proper error handling
 				return
 			}
 
 			messages <- message
-
 			_ = stream.Close()
 		}
 	}()
 
 	return messages
-
 }

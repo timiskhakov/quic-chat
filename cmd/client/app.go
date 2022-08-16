@@ -14,7 +14,7 @@ import (
 
 type errMsg error
 
-type model struct {
+type app struct {
 	viewport viewport.Model
 	textarea textarea.Model
 	err      error
@@ -24,7 +24,7 @@ type model struct {
 	mutex    sync.Mutex
 }
 
-func initialModel(send func(text string) error, messages <-chan chat.Message) *model {
+func createApp(send func(text string) error, messages <-chan chat.Message) *app {
 	vp := viewport.New(30, 10)
 
 	ta := textarea.New()
@@ -36,7 +36,7 @@ func initialModel(send func(text string) error, messages <-chan chat.Message) *m
 	ta.ShowLineNumbers = false
 	ta.KeyMap.InsertNewline.SetEnabled(false)
 
-	return &model{
+	return &app{
 		viewport: vp,
 		textarea: ta,
 		err:      nil,
@@ -46,55 +46,51 @@ func initialModel(send func(text string) error, messages <-chan chat.Message) *m
 	}
 }
 
-func (m *model) Init() tea.Cmd {
+func (a *app) Init() tea.Cmd {
 	go func() {
-		for message := range m.messages {
-			m.mutex.Lock()
-			m.lines = append(m.lines, fmt.Sprintf("[%s]: %s", message.Nickname, message.Text))
-			m.mutex.Unlock()
+		for message := range a.messages {
+			a.mutex.Lock()
+			a.lines = append(a.lines, fmt.Sprintf("[%s]: %s", message.Nickname, message.Text))
+			a.mutex.Unlock()
 		}
 	}()
 
 	return textinput.Blink
 }
 
-func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		vpCmd tea.Cmd
 		taCmd tea.Cmd
 	)
 
-	m.viewport, vpCmd = m.viewport.Update(msg)
-	m.textarea, taCmd = m.textarea.Update(msg)
+	a.viewport, vpCmd = a.viewport.Update(msg)
+	a.textarea, taCmd = a.textarea.Update(msg)
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
-			return m, tea.Quit
+			return a, tea.Quit
 		case tea.KeyEnter:
-			m.err = m.send(m.textarea.Value())
-			m.textarea.Reset()
+			a.err = a.send(a.textarea.Value())
+			a.textarea.Reset()
 			break
 		}
 	case errMsg:
-		m.err = msg
-		return m, nil
+		a.err = msg
+		return a, nil
 	}
 
-	m.mutex.Lock()
-	m.viewport.SetContent(strings.Join(m.lines, "\n"))
-	m.mutex.Unlock()
+	a.mutex.Lock()
+	a.viewport.SetContent(strings.Join(a.lines, "\n"))
+	a.mutex.Unlock()
 
-	m.viewport.GotoBottom()
+	a.viewport.GotoBottom()
 
-	return m, tea.Batch(vpCmd, taCmd)
+	return a, tea.Batch(vpCmd, taCmd)
 }
 
-func (m *model) View() string {
-	return fmt.Sprintf(
-		"%s\n\n%s",
-		m.viewport.View(),
-		m.textarea.View(),
-	) + "\n\n"
+func (a *app) View() string {
+	return fmt.Sprintf("%s\n%s\n", a.viewport.View(), a.textarea.View())
 }

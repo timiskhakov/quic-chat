@@ -22,7 +22,7 @@ func run() error {
 		return err
 	}
 
-	m := initialModel(client.Send, client.Receive())
+	m := createApp(client.Send, client.Receive())
 	if err := tea.NewProgram(m).Start(); err != nil {
 		return err
 	}
