@@ -52,17 +52,13 @@ func (s *server) Broadcast(ctx context.Context) {
 		select {
 		case message := <-s.messages:
 			s.mutex.Lock()
-			for _, client := range s.clients {
-				stream, err := client.OpenStreamSync(context.Background())
+			for addr, client := range s.clients {
+				stream, err := client.OpenStream()
 				if err != nil {
-					log.Printf("[ERROR] failed to open client stream: %v\n", err)
+					log.Printf("[ERROR] failed to open client %s stream: %v\n", addr, err)
 					continue
 				}
-				if err := gob.NewEncoder(stream).Encode(&message); err != nil {
-					log.Printf("[ERROR] failed to decode message: %v\n", err)
-					continue
-				}
-				_ = stream.Close()
+				go s.writeStream(stream, message)
 			}
 			s.mutex.Unlock()
 			log.Printf("[INFO] message received, broadcasted to %d clients\n", len(s.clients))
@@ -105,15 +101,27 @@ func (s *server) handleConn(conn quic.Connection) {
 			return
 		}
 
-		var message Message
-		if err := gob.NewDecoder(stream).Decode(&message); err != nil {
-			log.Printf("[ERROR] failed to decode message: %v\n", err)
-			return
-		}
+		go s.readStream(stream)
+	}
+}
 
-		s.messages <- message
+func (s *server) readStream(stream quic.Stream) {
+	defer func() { _ = stream.Close() }()
 
-		_ = stream.Close()
+	var message Message
+	if err := gob.NewDecoder(stream).Decode(&message); err != nil {
+		log.Printf("[ERROR] failed to decode message: %v\n", err)
+		return
+	}
+
+	s.messages <- message
+}
+
+func (s *server) writeStream(stream quic.Stream, message Message) {
+	defer func() { _ = stream.Close() }()
+
+	if err := gob.NewEncoder(stream).Encode(&message); err != nil {
+		log.Printf("[ERROR] failed to decode message: %v\n", err)
 	}
 }
 

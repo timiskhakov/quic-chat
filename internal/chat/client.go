@@ -25,7 +25,7 @@ func NewClient(addr, nickname string) (*client, error) {
 }
 
 func (c *client) Send(text string) error {
-	stream, err := c.conn.OpenStreamSync(context.Background())
+	stream, err := c.conn.OpenStream()
 	if err != nil {
 		return err
 	}
