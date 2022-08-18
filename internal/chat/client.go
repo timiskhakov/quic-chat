@@ -48,16 +48,20 @@ func (c *client) Receive(ctx context.Context) <-chan Message {
 			if err != nil {
 				return
 			}
-
-			var message Message
-			if err := gob.NewDecoder(stream).Decode(&message); err != nil {
-				return
-			}
-
-			messages <- message
-			_ = stream.Close()
+			go c.readStream(stream, messages)
 		}
 	}()
 
 	return messages
+}
+
+func (c *client) readStream(stream quic.Stream, messages chan<- Message) {
+	defer func() { _ = stream.Close() }()
+
+	var message Message
+	if err := gob.NewDecoder(stream).Decode(&message); err != nil {
+		return
+	}
+
+	messages <- message
 }
