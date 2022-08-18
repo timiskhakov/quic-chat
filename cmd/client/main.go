@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/timiskhakov/quic-chat/internal/chat"
@@ -22,7 +23,10 @@ func run() error {
 		return err
 	}
 
-	m := createApp(client.Send, client.Receive())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	m := createApp(client.Send, client.Receive(ctx))
 	if err := tea.NewProgram(m).Start(); err != nil {
 		return err
 	}

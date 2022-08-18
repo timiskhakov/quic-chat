@@ -39,12 +39,12 @@ func (c *client) Send(text string) error {
 	return nil
 }
 
-func (c *client) Receive() <-chan Message {
+func (c *client) Receive(ctx context.Context) <-chan Message {
 	messages := make(chan Message)
 	go func() {
 		defer close(messages)
 		for {
-			stream, err := c.conn.AcceptStream(context.Background())
+			stream, err := c.conn.AcceptStream(ctx)
 			if err != nil {
 				return
 			}
