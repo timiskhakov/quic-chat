@@ -9,22 +9,23 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/timiskhakov/quic-chat/internal/chat"
 	"strings"
-	"sync"
 )
 
-type errMsg error
+type clientMsg struct {
+	message chat.Message
+	err     error
+}
 
 type app struct {
 	viewport viewport.Model
 	textarea textarea.Model
-	err      error
 	lines    []string
 	send     func(text string) error
 	messages <-chan chat.Message
-	mutex    sync.Mutex
+	errs     <-chan error
 }
 
-func createApp(send func(text string) error, messages <-chan chat.Message) *app {
+func createApp(send func(text string) error, messages <-chan chat.Message, errs <-chan error) *app {
 	vp := viewport.New(30, 10)
 
 	ta := textarea.New()
@@ -39,23 +40,15 @@ func createApp(send func(text string) error, messages <-chan chat.Message) *app 
 	return &app{
 		viewport: vp,
 		textarea: ta,
-		err:      nil,
 		lines:    []string{},
 		send:     send,
 		messages: messages,
+		errs:     errs,
 	}
 }
 
 func (a *app) Init() tea.Cmd {
-	go func() {
-		for message := range a.messages {
-			a.mutex.Lock()
-			a.lines = append(a.lines, fmt.Sprintf("[%s]: %s", message.Nickname, message.Text))
-			a.mutex.Unlock()
-		}
-	}()
-
-	return textinput.Blink
+	return tea.Batch(textinput.Blink, a.waitForMessageOrError())
 }
 
 func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -63,7 +56,6 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		vpCmd tea.Cmd
 		taCmd tea.Cmd
 	)
-
 	a.viewport, vpCmd = a.viewport.Update(msg)
 	a.textarea, taCmd = a.textarea.Update(msg)
 
@@ -73,24 +65,35 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC, tea.KeyEsc:
 			return a, tea.Quit
 		case tea.KeyEnter:
-			a.err = a.send(a.textarea.Value())
+			if err := a.send(a.textarea.Value()); err != nil {
+				return a, tea.Quit
+			}
 			a.textarea.Reset()
-			break
 		}
-	case errMsg:
-		a.err = msg
-		return a, nil
+	case clientMsg:
+		if msg.err != nil {
+			return a, tea.Quit
+		}
+		a.lines = append(a.lines, fmt.Sprintf("[%s]: %s", msg.message.Nickname, msg.message.Text))
+		a.viewport.SetContent(strings.Join(a.lines, "\n"))
+		a.viewport.GotoBottom()
+		return a, a.waitForMessageOrError()
 	}
-
-	a.mutex.Lock()
-	a.viewport.SetContent(strings.Join(a.lines, "\n"))
-	a.mutex.Unlock()
-
-	a.viewport.GotoBottom()
 
 	return a, tea.Batch(vpCmd, taCmd)
 }
 
 func (a *app) View() string {
 	return fmt.Sprintf("%s\n%s\n", a.viewport.View(), a.textarea.View())
+}
+
+func (a *app) waitForMessageOrError() tea.Cmd {
+	return func() tea.Msg {
+		select {
+		case message := <-a.messages:
+			return clientMsg{message: message}
+		case err := <-a.errs:
+			return clientMsg{err: err}
+		}
+	}
 }
