@@ -75,11 +75,11 @@ func (s *server) Accept(ctx context.Context) {
 			return
 		}
 
-		go s.handleConn(conn)
+		go s.handleConn(ctx, conn)
 	}
 }
 
-func (s *server) handleConn(conn quic.Connection) {
+func (s *server) handleConn(ctx context.Context, conn quic.Connection) {
 	defer func() { _ = conn.CloseWithError(1, "server closed") }()
 
 	s.mutex.Lock()
@@ -89,7 +89,7 @@ func (s *server) handleConn(conn quic.Connection) {
 	log.Printf("[INFO] added client: %s\n", conn.RemoteAddr().String())
 
 	for {
-		stream, err := conn.AcceptStream(context.Background())
+		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
 			addr := conn.RemoteAddr().String()
 			s.mutex.Lock()
