@@ -26,8 +26,8 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	m := createApp(client.Send, client.Receive(ctx))
-	if err := tea.NewProgram(m).Start(); err != nil {
+	a := createApp(client.Send, client.Receive(ctx))
+	if err := tea.NewProgram(a).Start(); err != nil {
 		return err
 	}
 
