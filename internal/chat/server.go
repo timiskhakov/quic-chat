@@ -121,7 +121,7 @@ func (s *server) writeStream(stream quic.Stream, message Message) {
 	defer func() { _ = stream.Close() }()
 
 	if err := gob.NewEncoder(stream).Encode(&message); err != nil {
-		log.Printf("[ERROR] failed to decode message: %v\n", err)
+		log.Printf("[ERROR] failed to encode message: %v\n", err)
 	}
 }
 
