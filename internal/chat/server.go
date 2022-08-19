@@ -6,7 +6,6 @@ import (
 	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/gob"
 	"encoding/pem"
 	"github.com/lucas-clemente/quic-go"
 	"log"
@@ -51,17 +50,9 @@ func (s *server) Broadcast(ctx context.Context) {
 	for {
 		select {
 		case message := <-s.messages:
-			s.mutex.Lock()
 			for addr, client := range s.clients {
-				stream, err := client.OpenStream()
-				if err != nil {
-					log.Printf("[ERROR] failed to open client %s stream: %v\n", addr, err)
-					continue
-				}
-				go s.writeStream(stream, message)
+				go s.sendMessage(client, addr, message)
 			}
-			s.mutex.Unlock()
-			log.Printf("[INFO] message received, broadcasted to %d clients\n", len(s.clients))
 		case <-ctx.Done():
 			return
 		}
@@ -106,10 +97,8 @@ func (s *server) handleConn(ctx context.Context, conn quic.Connection) {
 }
 
 func (s *server) readStream(stream quic.Stream) {
-	defer func() { _ = stream.Close() }()
-
 	var message Message
-	if err := gob.NewDecoder(stream).Decode(&message); err != nil {
+	if err := message.Read(stream); err != nil {
 		log.Printf("[ERROR] failed to decode message: %v\n", err)
 		return
 	}
@@ -117,11 +106,17 @@ func (s *server) readStream(stream quic.Stream) {
 	s.messages <- message
 }
 
-func (s *server) writeStream(stream quic.Stream, message Message) {
+func (s *server) sendMessage(client quic.Connection, addr string, message Message) {
+	stream, err := client.OpenStream()
 	defer func() { _ = stream.Close() }()
 
-	if err := gob.NewEncoder(stream).Encode(&message); err != nil {
-		log.Printf("[ERROR] failed to encode message: %v\n", err)
+	if err != nil {
+		log.Printf("[ERROR] failed to connect to client %s: %v\n", addr, err)
+		return
+	}
+	if err := message.Write(stream); err != nil {
+		log.Printf("[ERROR] failed to send message to %s: %v\n", addr, err)
+		return
 	}
 }
 

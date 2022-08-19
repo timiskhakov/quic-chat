@@ -3,7 +3,6 @@ package chat
 import (
 	"context"
 	"crypto/tls"
-	"encoding/gob"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -29,10 +28,10 @@ func (c *client) Send(text string) error {
 	if err != nil {
 		return err
 	}
-	
-	go c.writeStream(stream, text)
+	defer func() { _ = stream.Close() }()
 
-	return nil
+	message := Message{Nickname: c.nickname, Text: text}
+	return message.Write(stream)
 }
 
 func (c *client) Receive(ctx context.Context) (<-chan Message, <-chan error) {
@@ -40,33 +39,26 @@ func (c *client) Receive(ctx context.Context) (<-chan Message, <-chan error) {
 	errs := make(chan error)
 	go func() {
 		defer close(messages)
+		defer close(errs)
 		for {
 			stream, err := c.conn.AcceptStream(ctx)
 			if err != nil {
 				errs <- err
 				return
 			}
-			go c.readStream(stream, messages)
+			go c.readStream(stream, messages, errs)
 		}
 	}()
 
 	return messages, errs
 }
 
-func (c *client) writeStream(stream quic.Stream, text string) {
-	defer func() { _ = stream.Close() }()
-
-	message := Message{Nickname: c.nickname, Text: text}
-	if err := gob.NewEncoder(stream).Encode(&message); err != nil {
-		return
-	}
-}
-
-func (c *client) readStream(stream quic.Stream, messages chan<- Message) {
+func (c *client) readStream(stream quic.Stream, messages chan<- Message, errs chan<- error) {
 	defer func() { _ = stream.Close() }()
 
 	var message Message
-	if err := gob.NewDecoder(stream).Decode(&message); err != nil {
+	if err := message.Read(stream); err != nil {
+		errs <- err
 		return
 	}
 
