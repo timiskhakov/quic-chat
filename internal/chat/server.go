@@ -82,17 +82,15 @@ func (s *server) handleConn(ctx context.Context, conn quic.Connection) {
 	for {
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
-			s.removeClient(conn)
+			s.removeClient(conn.RemoteAddr().String())
 			return
 		}
 
-		go s.readStream(stream)
+		go s.readMessage(stream)
 	}
 }
 
-func (s *server) removeClient(conn quic.Connection) {
-	addr := conn.RemoteAddr().String()
-
+func (s *server) removeClient(addr string) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -102,7 +100,7 @@ func (s *server) removeClient(conn quic.Connection) {
 	}
 }
 
-func (s *server) readStream(stream quic.Stream) {
+func (s *server) readMessage(stream quic.Stream) {
 	var message Message
 	if err := message.Read(stream); err != nil {
 		log.Printf("[ERROR] failed to decode message: %v\n", err)
@@ -114,12 +112,12 @@ func (s *server) readStream(stream quic.Stream) {
 
 func (s *server) sendMessage(client quic.Connection, addr string, message Message) {
 	stream, err := client.OpenStream()
-	defer func() { _ = stream.Close() }()
-
 	if err != nil {
 		log.Printf("[ERROR] failed to connect to client %s: %v\n", addr, err)
 		return
 	}
+	defer func() { _ = stream.Close() }()
+
 	if err := message.Write(stream); err != nil {
 		log.Printf("[ERROR] failed to send message to %s: %v\n", addr, err)
 		return
@@ -131,18 +129,20 @@ func generateTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	template := x509.Certificate{SerialNumber: big.NewInt(1)}
-	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
+	cert, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
 	if err != nil {
 		return nil, err
 	}
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
 	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, err
 	}
+
 	return &tls.Config{
 		Certificates: []tls.Certificate{tlsCert},
 		NextProtos:   []string{protocol},

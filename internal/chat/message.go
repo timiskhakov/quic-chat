@@ -10,10 +10,10 @@ type Message struct {
 	Text     string
 }
 
-func (m *Message) Read(stream io.Reader) error {
-	return gob.NewDecoder(stream).Decode(m)
+func (m *Message) Read(r io.Reader) error {
+	return gob.NewDecoder(r).Decode(m)
 }
 
-func (m *Message) Write(stream io.Writer) error {
-	return gob.NewEncoder(stream).Encode(m)
+func (m *Message) Write(w io.Writer) error {
+	return gob.NewEncoder(w).Encode(m)
 }
