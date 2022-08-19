@@ -82,17 +82,23 @@ func (s *server) handleConn(ctx context.Context, conn quic.Connection) {
 	for {
 		stream, err := conn.AcceptStream(ctx)
 		if err != nil {
-			addr := conn.RemoteAddr().String()
-			s.mutex.Lock()
-			if _, ok := s.clients[addr]; ok {
-				delete(s.clients, addr)
-				log.Printf("[INFO] removed client %s\n", addr)
-			}
-			s.mutex.Unlock()
+			s.removeClient(conn)
 			return
 		}
 
 		go s.readStream(stream)
+	}
+}
+
+func (s *server) removeClient(conn quic.Connection) {
+	addr := conn.RemoteAddr().String()
+
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if _, ok := s.clients[addr]; ok {
+		delete(s.clients, addr)
+		log.Printf("[INFO] removed client %s\n", addr)
 	}
 }
 
