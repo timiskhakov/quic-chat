@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"github.com/lucas-clemente/quic-go"
 	"log"
 	"math/big"
@@ -21,13 +22,13 @@ type server struct {
 	mutex    sync.Mutex
 }
 
-func NewServer(addr string) (*server, error) {
+func NewServer() (*server, error) {
 	tlsConf, err := generateTLSConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	listener, err := quic.ListenAddr(addr, tlsConf, &quic.Config{
+	listener, err := quic.ListenAddr(fmt.Sprintf(":%d", port), tlsConf, &quic.Config{
 		KeepAlivePeriod: 10 * time.Second,
 	})
 	if err != nil {

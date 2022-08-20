@@ -1,3 +1,6 @@
 package chat
 
-const protocol = "simpleproto"
+const (
+	protocol = "simpleproto"
+	port     = 4242
+)

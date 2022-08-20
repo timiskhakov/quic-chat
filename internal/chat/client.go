@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
 	"github.com/lucas-clemente/quic-go"
 )
 
@@ -12,7 +13,7 @@ type client struct {
 }
 
 func NewClient(addr, nickname string) (*client, error) {
-	conn, err := quic.DialAddr(addr, &tls.Config{
+	conn, err := quic.DialAddr(fmt.Sprintf("%s:%d", addr, port), &tls.Config{
 		InsecureSkipVerify: true,
 		NextProtos:         []string{protocol},
 	}, nil)
@@ -36,8 +37,7 @@ func (c *client) Send(text string) error {
 }
 
 func (c *client) Receive(ctx context.Context) (<-chan Message, <-chan error) {
-	messages := make(chan Message)
-	errs := make(chan error)
+	messages, errs := make(chan Message), make(chan error)
 	go func() {
 		defer close(messages)
 		defer close(errs)
@@ -47,7 +47,7 @@ func (c *client) Receive(ctx context.Context) (<-chan Message, <-chan error) {
 				errs <- err
 				return
 			}
-			
+
 			go c.readStream(stream, messages, errs)
 		}
 	}()

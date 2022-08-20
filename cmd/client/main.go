@@ -10,8 +10,6 @@ import (
 	"os"
 )
 
-const addr = "localhost:4242"
-
 func main() {
 	if err := run(); err != nil {
 		fmt.Printf("%v\n", err)
@@ -21,13 +19,14 @@ func main() {
 
 func run() error {
 	nickname := flag.String("n", "", "nickname")
+	addr := flag.String("s", "localhost", "server")
 	flag.Parse()
 
 	if *nickname == "" {
 		return errors.New("nickname is empty")
 	}
 
-	client, err := chat.NewClient(addr, *nickname)
+	client, err := chat.NewClient(*addr, *nickname)
 	if err != nil {
 		return err
 	}
