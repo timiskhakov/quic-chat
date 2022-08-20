@@ -31,6 +31,7 @@ func (c *client) Send(text string) error {
 	defer func() { _ = stream.Close() }()
 
 	message := Message{Nickname: c.nickname, Text: text}
+
 	return message.Write(stream)
 }
 
@@ -46,6 +47,7 @@ func (c *client) Receive(ctx context.Context) (<-chan Message, <-chan error) {
 				errs <- err
 				return
 			}
+			
 			go c.readStream(stream, messages, errs)
 		}
 	}()

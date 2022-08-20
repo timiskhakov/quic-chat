@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -48,7 +47,7 @@ func createApp(send func(text string) error, messages <-chan chat.Message, errs 
 }
 
 func (a *app) Init() tea.Cmd {
-	return tea.Batch(textinput.Blink, a.waitForMessageOrError())
+	return tea.Batch(textarea.Blink, a.waitForMessageOrError())
 }
 
 func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
