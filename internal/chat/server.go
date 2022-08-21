@@ -66,7 +66,7 @@ func (s *server) Accept(ctx context.Context) {
 	for {
 		conn, err := s.listener.Accept(ctx)
 		if err != nil {
-			log.Printf("[ERROR] failed to accept new connection : %v\n", err)
+			log.Printf("[ERROR] failed to accept new connection: %v\n", err)
 			return
 		}
 
@@ -75,7 +75,7 @@ func (s *server) Accept(ctx context.Context) {
 }
 
 func (s *server) handleConn(ctx context.Context, conn quic.Connection) {
-	defer func() { _ = conn.CloseWithError(1, "server error") }()
+	defer func() { _ = conn.CloseWithError(serverError, "failed to handle connection") }()
 
 	s.mutex.Lock()
 	s.clients[conn.RemoteAddr().String()] = conn
