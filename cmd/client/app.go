@@ -83,7 +83,7 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (a *app) View() string {
-	return fmt.Sprintf("%s\n%s\n", a.viewport.View(), a.textarea.View())
+	return fmt.Sprintf("%s\n\n%s\n", a.viewport.View(), a.textarea.View())
 }
 
 func (a *app) waitForMessageOrError() tea.Cmd {
