@@ -47,7 +47,7 @@ func createApp(send func(text string) error, messages <-chan chat.Message, errs 
 }
 
 func (a *app) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, a.waitForMessageOrError())
+	return a.waitForMessageOrError()
 }
 
 func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
