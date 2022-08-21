@@ -2,15 +2,10 @@ package chat
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"github.com/lucas-clemente/quic-go"
 	"log"
-	"math/big"
 	"sync"
 	"time"
 )
@@ -131,26 +126,13 @@ func (s *server) sendMessage(client quic.Connection, addr string, message Messag
 }
 
 func generateTLSConfig() (*tls.Config, error) {
-	key, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		return nil, err
-	}
-
-	template := x509.Certificate{SerialNumber: big.NewInt(1)}
-	cert, err := x509.CreateCertificate(rand.Reader, &template, &template, &key.PublicKey, key)
-	if err != nil {
-		return nil, err
-	}
-
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(key)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert})
-	tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+	cert, err := tls.LoadX509KeyPair("./tls/server.crt", "./tls/server.key")
 	if err != nil {
 		return nil, err
 	}
 
 	return &tls.Config{
-		Certificates: []tls.Certificate{tlsCert},
+		Certificates: []tls.Certificate{cert},
 		NextProtos:   []string{protocol},
 	}, nil
 }
