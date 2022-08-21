@@ -51,9 +51,11 @@ func (s *server) Broadcast(ctx context.Context) {
 	for {
 		select {
 		case message := <-s.messages:
+			s.mutex.Lock()
 			for addr, client := range s.clients {
 				go s.sendMessage(client, addr, message)
 			}
+			s.mutex.Unlock()
 		case <-ctx.Done():
 			return
 		}
@@ -64,6 +66,7 @@ func (s *server) Accept(ctx context.Context) {
 	for {
 		conn, err := s.listener.Accept(ctx)
 		if err != nil {
+			log.Printf("[ERROR] failed to accept new connection : %v\n", err)
 			return
 		}
 
@@ -72,7 +75,7 @@ func (s *server) Accept(ctx context.Context) {
 }
 
 func (s *server) handleConn(ctx context.Context, conn quic.Connection) {
-	defer func() { _ = conn.CloseWithError(1, "server closed") }()
+	defer func() { _ = conn.CloseWithError(1, "server error") }()
 
 	s.mutex.Lock()
 	s.clients[conn.RemoteAddr().String()] = conn
@@ -102,6 +105,8 @@ func (s *server) removeClient(addr string) {
 }
 
 func (s *server) readMessage(stream quic.Stream) {
+	defer func() { _ = stream.Close() }()
+
 	var message Message
 	if err := message.Read(stream); err != nil {
 		log.Printf("[ERROR] failed to decode message: %v\n", err)
