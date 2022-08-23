@@ -126,7 +126,7 @@ func (s *server) sendMessage(client quic.Connection, addr string, message Messag
 }
 
 func generateTLSConfig() (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair("./tls/server.crt", "./tls/server.key")
+	cert, err := tls.LoadX509KeyPair("server.crt", "server.key")
 	if err != nil {
 		return nil, err
 	}
