@@ -1,5 +1,7 @@
 # quic-chat
 
+A simple chat that works over [QUIC](https://en.wikipedia.org/wiki/QUIC).
+
 ## Running Server
 
 1. Generate a set of private and public keys:
@@ -20,5 +22,5 @@ go run ./cmd/server
 Run the client:
 
 ```shell
-go run ./cmd/clinet -n <Nickname>
+go run ./cmd/clinet [-s <ServerAddress>] -n <Nickname>
 ```
